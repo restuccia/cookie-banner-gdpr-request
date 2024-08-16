@@ -1,0 +1,14 @@
+{
+    "name": "cookie-banner-gdpr-request",
+    "manifest_version": 3,
+    "description": "Extract partners from cookie banners to request personal data (GDPR)",
+    "background": {
+        "service_worker": "background.js",
+        "type": "module"
+    },
+    "permissions": [
+        "storage",
+        "tabs"
+    ],
+    "version": "0.1"
+}
