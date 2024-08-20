@@ -1,5 +1,5 @@
 chrome.runtime.onInstalled.addListener(async () => {
-    const done = await chrome.storage.session.set({ "cbgr": {} })
+    await chrome.storage.session.set({ "cbgr": {} })
 })
 
 chrome.tabs.onUpdated.addListener(async (tabId) => {
@@ -24,17 +24,20 @@ chrome.tabs.onUpdated.addListener(async (tabId) => {
         cbgr[hostname] = {
             lastVisited: Date.now().valueOf()
         }
+        let cmp, csv
 
         switch (hostname) {
             case 'www.heise.de':
-                const cmp = await handleHeise();
-                const csv = cmp.vendors.map(({ name, policyUrl }) => { 
+                cmp = await handleHeise();
+                csv = cmp.vendors.map(({ name, policyUrl }) => {
                     const { hostname } = new URL(policyUrl);
-                    return [name, policyUrl, hostname ]
+                    return [ name, policyUrl, hostname ];
                 });
                 cbgr[hostname].vendors = csv;
                 // TODO: Surface to human in a future version
                 break;
+            case 'www.paypal.com':
+                await handlePaypal(cbgr, 'www.paypal.com');
             default:
                 // Do nothing
         }
@@ -50,6 +53,51 @@ async function getCurrentTab() {
   return tab;
 }
 
+async function hasOffscreenDocument(path) {
+  if ('getContexts' in chrome.runtime) {
+    // Newer API
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      documentUrls: [path]
+    });
+    return Boolean(contexts.length);
+  } else {
+    // Older API
+    const matchedClients = await clients.matchAll();
+    return await matchedClients.some((client) => {
+        client.url.endsWith(path);
+    });
+  }
+}
+
+let creating; // A global promise to avoid concurrency issues
+async function setupOffscreenDocument(path) {
+  // Check all windows controlled by the service worker to see if one
+  // of them is the offscreen document with the given path
+  const offscreenUrl = chrome.runtime.getURL(path);
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [offscreenUrl]
+  });
+
+  if (existingContexts.length > 0) {
+    return;
+  }
+
+  // create offscreen document
+  if (creating) {
+    await creating;
+  } else {
+    creating = chrome.offscreen.createDocument({
+      url: path,
+      reasons: [chrome.offscreen.Reason.DOM_PARSER],
+      justification: 'Need to parse the partners from the document.',
+    });
+    await creating;
+    creating = null;
+  }
+}
+
 // This might be refactored after handling more sites
 async function handleHeise() {
     const response1 = await fetch("https://cmp.heise.de/mms/v2/message?message_id=756676")
@@ -59,4 +107,26 @@ async function handleHeise() {
     const consents = await response2.json();
 
     return consents
+}
+
+async function handlePaypal(cbgr, hostname) {
+    await setupOffscreenDocument('/paypal.html')
+    const onDone = async (cmp) => {
+        const csv = cmp.map(({ policyUrl, name }) => {
+          const { hostname } = new URL(policyUrl);
+          return [ name, policyUrl, hostname ];
+        });
+        cbgr[hostname].vendors = csv;
+
+        await chrome.storage.session.set({ cbgr });
+        console.log(JSON.stringify(csv))
+        chrome.runtime.onMessage.removeListener(onDone);
+    };
+
+    chrome.runtime.onMessage.addListener(onDone);
+    // Send message to offscreen document
+    chrome.runtime.sendMessage({
+      type: 'parse-paypal-partners',
+      target: 'offscreen'
+    });
 }
