@@ -38,6 +38,16 @@ chrome.tabs.onUpdated.addListener(async (tabId) => {
                 break;
             case 'www.paypal.com':
                 await handlePaypal(cbgr, 'www.paypal.com');
+                break;
+            case 'www.spiegel.de':
+                cmp = await handleSpiegel();
+                csv = cmp.vendors.map(({ name, policyUrl }) => {
+                    const { hostname } = new URL(policyUrl);
+                    return [ name, policyUrl, hostname ];
+                });
+                cbgr[hostname].vendors = csv;
+                // TODO: Surface to human in a future version
+                break;
             default:
                 // Do nothing
         }
@@ -104,6 +114,17 @@ async function handleHeise() {
     const consentManagementPlatform = await response1.json();
     const consentManagement = JSON.parse(consentManagementPlatform.message_json);
     const response2 = await fetch(`https://cmp.heise.de/consent/tcfv2/privacy-manager/privacy-manager-view?siteId=${consentManagementPlatform.site_id}&vendorListId=${consentManagement.settings.vendorList}`)
+    const consents = await response2.json();
+
+    return consents
+}
+
+// This might be refactored after handling more sites
+async function handleSpiegel() {
+    const response1 = await fetch("https://sp-spiegel-de.spiegel.de/mms/v2/message?message_id=756676")
+    const consentManagementPlatform = await response1.json();
+    const consentManagement = JSON.parse(consentManagementPlatform.message_json);
+    const response2 = await fetch(`https://sp-spiegel-de.spiegel.de/consent/tcfv2/privacy-manager/privacy-manager-view?siteId=${consentManagementPlatform.site_id}&vendorListId=${consentManagement.settings.vendorList}`)
     const consents = await response2.json();
 
     return consents
