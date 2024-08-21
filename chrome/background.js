@@ -108,26 +108,24 @@ async function setupOffscreenDocument(path) {
   }
 }
 
-// This might be refactored after handling more sites
-async function handleHeise() {
-    const response1 = await fetch("https://cmp.heise.de/mms/v2/message?message_id=756676")
+async function handleTcf(hostname, messageId) {
+    const response1 = await fetch(`https://${hostname}/mms/v2/message?message_id=${messageId}`)
     const consentManagementPlatform = await response1.json();
     const consentManagement = JSON.parse(consentManagementPlatform.message_json);
-    const response2 = await fetch(`https://cmp.heise.de/consent/tcfv2/privacy-manager/privacy-manager-view?siteId=${consentManagementPlatform.site_id}&vendorListId=${consentManagement.settings.vendorList}`)
+    const response2 = await fetch(`https://${hostname}/consent/tcfv2/privacy-manager/privacy-manager-view?siteId=${consentManagementPlatform.site_id}&vendorListId=${consentManagement.settings.vendorList}`)
     const consents = await response2.json();
 
     return consents
 }
 
 // This might be refactored after handling more sites
-async function handleSpiegel() {
-    const response1 = await fetch("https://sp-spiegel-de.spiegel.de/mms/v2/message?message_id=756676")
-    const consentManagementPlatform = await response1.json();
-    const consentManagement = JSON.parse(consentManagementPlatform.message_json);
-    const response2 = await fetch(`https://sp-spiegel-de.spiegel.de/consent/tcfv2/privacy-manager/privacy-manager-view?siteId=${consentManagementPlatform.site_id}&vendorListId=${consentManagement.settings.vendorList}`)
-    const consents = await response2.json();
+async function handleHeise() {
+    return handleTcf('cmp.heise.de', '756676');
+}
 
-    return consents
+// This might be refactored after handling more sites
+async function handleSpiegel() {
+    return handleTcf('sp-spiegel-de.spiegel.de', '756676');
 }
 
 async function handlePaypal(cbgr, hostname) {
