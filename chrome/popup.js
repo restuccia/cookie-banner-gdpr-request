@@ -28,6 +28,8 @@ function populateTable(vendors) {
 
   if (vendors.length > 0) {
     status.textContent = vendors.length + ' partners found.';
+    chrome.action.setBadgeText({ text: vendors.length.toString() });
+
     const theadTr = document.createElement('tr');
     const nameTh = document.createElement('th');
     const policyUrlTh = document.createElement('th');
@@ -43,6 +45,7 @@ function populateTable(vendors) {
     thead.appendChild(theadTr);
   } else {
     status.textContent = 'Nothing found. Reload the page and try again.';
+    chrome.action.setBadgeText({ text: '0' });
   }
 
   vendors.forEach((vendor) => {
@@ -71,6 +74,7 @@ async function getCurrentTab() {
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
+    await chrome.action.setBadgeText({text: '🔁'});
     const tab = await getCurrentTab();
     await chrome.runtime.sendMessage({
         msg: 'popup-get-partners',
