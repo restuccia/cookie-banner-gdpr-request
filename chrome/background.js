@@ -3,8 +3,6 @@ chrome.runtime.onInstalled.addListener(async () => {
 })
 
 chrome.tabs.onUpdated.addListener(async (tabId) => {
-    'use strict';
-
     const tab = await getCurrentTab();
     if (!tab) {
         return;
@@ -34,7 +32,6 @@ chrome.tabs.onUpdated.addListener(async (tabId) => {
                     return [ name, policyUrl, hostname ];
                 });
                 cbgr[hostname].vendors = csv;
-                // TODO: Surface to human in a future version
                 break;
             case 'www.paypal.com':
                 await handlePaypal(cbgr, 'www.paypal.com');
@@ -46,7 +43,6 @@ chrome.tabs.onUpdated.addListener(async (tabId) => {
                     return [ name, policyUrl, hostname ];
                 });
                 cbgr[hostname].vendors = csv;
-                // TODO: Surface to human in a future version
                 break;
             default:
                 // Do nothing
@@ -55,6 +51,16 @@ chrome.tabs.onUpdated.addListener(async (tabId) => {
         await chrome.storage.session.set({ cbgr });
     }
 });
+
+chrome.runtime.onMessage.addListener(async function (message, sender, sendResponse) {
+    if (message.msg !== 'popup-get-partners') {
+      return false;
+    }
+
+    const { hostname } = new URL(message.data);
+    const { cbgr } = await chrome.storage.session.get(["cbgr"]);
+    sendResponse(cbgr[hostname] || null);
+})
 
 async function getCurrentTab() {
   let queryOptions = { active: true, lastFocusedWindow: true };
@@ -138,12 +144,10 @@ async function handlePaypal(cbgr, hostname) {
         cbgr[hostname].vendors = csv;
 
         await chrome.storage.session.set({ cbgr });
-        console.log(JSON.stringify(csv))
         chrome.runtime.onMessage.removeListener(onDone);
     };
 
     chrome.runtime.onMessage.addListener(onDone);
-    // Send message to offscreen document
     chrome.runtime.sendMessage({
       type: 'parse-paypal-partners',
       target: 'offscreen'
